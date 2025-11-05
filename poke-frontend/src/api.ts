@@ -1,3 +1,5 @@
+export type ApiError = Error & { status?: number; body?: string };
+
 const API_BASE_URL = 'http://localhost:8000';
 
 export class ApiClient {
@@ -5,6 +7,20 @@ export class ApiClient {
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+  }
+
+  private async ensureOk(response: Response, label: string): Promise<Response> {
+    if (response.ok) {
+      return response;
+    }
+
+    const body = await response.text().catch(() => '');
+    const error = new Error(
+      `${label}: ${response.status} ${response.statusText}`.trim(),
+    ) as ApiError;
+    error.status = response.status;
+    error.body = body;
+    throw error;
   }
 
   async createUser(connectionId: string, name?: string): Promise<any> {
@@ -19,20 +35,13 @@ export class ApiClient {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to create user: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to create user');
     return response.json();
   }
 
   async getUser(userId: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/users/${userId}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get user: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to get user');
     return response.json();
   }
 
@@ -48,20 +57,13 @@ export class ApiClient {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to initiate connection: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to initiate connection');
     return response.json();
   }
 
   async checkConnectionStatus(connectionId: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/connections/${connectionId}/status`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to check connection status: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to check connection status');
     return response.json();
   }
 
@@ -77,50 +79,31 @@ export class ApiClient {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to send message: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to send message');
     return response.json();
   }
 
   async getMessageResponse(messageId: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/messages/${messageId}/response`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get message response: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to get message response');
     return response.json();
   }
 
   async getUserMemory(userId: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/users/${userId}/memory`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get user memory: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to get user memory');
     return response.json();
   }
 
   async healthCheck(): Promise<any> {
     const response = await fetch(`${this.baseUrl}/health`);
-    
-    if (!response.ok) {
-      throw new Error(`Health check failed: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Health check failed');
     return response.json();
   }
 
   async getUserConversations(userId: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/users/${userId}/conversations`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get conversations: ${response.statusText}`);
-    }
-
+    await this.ensureOk(response, 'Failed to get conversations');
     return response.json();
   }
 }

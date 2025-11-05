@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import os
 from typing import Optional
 import asyncio
 
@@ -14,9 +15,18 @@ from collections import deque
 app = FastAPI(title="Poke AI Backend", version="1.0.0")
 
 # Add CORS middleware
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
+allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+final_allowed_origins = allowed_origins or DEFAULT_ALLOWED_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],  # Frontend URLs
+    allow_origins=final_allowed_origins,  # Configurable via env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

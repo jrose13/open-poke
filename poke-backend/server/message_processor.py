@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional
 import logging
-from .agent import PokeAgent
+from .agent import VoyagerAgent
 from .models import Message, User
 
 logging.basicConfig(level=logging.INFO)
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class MessageProcessor:
     def __init__(self, message_queue, users, memories):
-        self.agent = PokeAgent()
+        self.agent = VoyagerAgent()
         self.message_queue = message_queue
         self.users = users
         self.memories = memories

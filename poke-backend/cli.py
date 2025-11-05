@@ -13,7 +13,7 @@ import random
 # Add the server directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'server'))
 
-from server.agent import PokeAgent
+from server.agent import VoyagerAgent
 from server.models import User
 from server.connection import initiate_connection, get_connection_status
 from composio import Composio
@@ -21,7 +21,7 @@ from composio import Composio
 
 class PokeChat:
     def __init__(self):
-        self.agent = PokeAgent()
+        self.agent = VoyagerAgent()
         self.composio_client = Composio()
         self.current_user_id = None
         self.gmail_connected = False

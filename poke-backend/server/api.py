@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -11,6 +11,7 @@ from .connection import initiate_connection, get_connection_status
 from composio import Composio
 from typing import Dict
 from collections import deque
+from .notifications import EventNotifier
 
 app = FastAPI(title="Poke AI Backend", version="1.0.0")
 
@@ -36,9 +37,10 @@ app.add_middleware(
 users: Dict[str, User] = {}
 memories: Dict[str, UserMemory] = {}
 message_queue = deque()
+event_notifier = EventNotifier()
 
 # Global instances
-message_processor = MessageProcessor(message_queue, users, memories)
+message_processor = MessageProcessor(message_queue, users, memories, event_notifier)
 composio_client = Composio()
 
 # Request/Response models
@@ -206,3 +208,26 @@ async def get_user_conversations(user_id: str):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+@app.websocket("/ws/users/{user_id}")
+async def user_updates(websocket: WebSocket, user_id: str):
+    await event_notifier.connect(user_id, websocket)
+
+    try:
+        if user_id not in memories:
+            memories[user_id] = UserMemory(user_id=user_id)
+
+        await websocket.send_json(
+            {
+                "type": "conversation_snapshot",
+                "conversations": memories[user_id].conversation_history,
+            }
+        )
+
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        event_notifier.disconnect(user_id, websocket)
+    except Exception:
+        event_notifier.disconnect(user_id, websocket)

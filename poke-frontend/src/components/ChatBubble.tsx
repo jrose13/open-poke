@@ -30,10 +30,10 @@ export function ChatBubble({ message }: ChatBubbleProps) {
       isUser ? 'justify-end' : 'justify-start'
     )}>
       <div className={clsx(
-        'max-w-xs lg:max-w-md px-4 py-2 rounded-2xl relative',
+        'max-w-xs lg:max-w-md px-4 py-3 rounded-xl relative shadow-sm',
         isUser 
-          ? 'bg-blue-500 text-white rounded-br-md' 
-          : 'bg-gray-200 text-gray-800 rounded-bl-md'
+          ? 'bg-blue-600 text-white rounded-br-md' 
+          : 'bg-white text-gray-900 rounded-bl-md border border-gray-200'
       )}>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         

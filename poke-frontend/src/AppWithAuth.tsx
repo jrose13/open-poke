@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User } from 'lucide-react';
 import { AuthForm } from './components/AuthForm';
+import voyagerHealthLogo from './assets/voyager_health.svg';
 import { ChatBubble } from './components/ChatBubble';
 import { TypingIndicator } from './components/TypingIndicator';
 import { MessageInput } from './components/MessageInput';
@@ -179,8 +180,8 @@ function AppWithAuth() {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">💬</span>
+          <div className="flex items-center justify-center mx-auto mb-4">
+            <img src={voyagerHealthLogo} alt="Voyager Health" className="h-12" />
           </div>
           <p className="text-gray-600">Loading...</p>
         </div>
@@ -196,13 +197,7 @@ function AppWithAuth() {
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-lg">💬</span>
-          </div>
-          <div>
-            <h1 className="font-semibold text-gray-900">Voyager Health</h1>
-            <p className="text-sm text-gray-500">AI Healthcare Assistant</p>
-          </div>
+          <img src={voyagerHealthLogo} alt="Voyager Health" className="h-8" />
         </div>
         <button
           onClick={handleSignOut}

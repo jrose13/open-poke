@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../supabase';
+import voyagerHealthLogo from '../assets/voyager_health.svg';
 
 interface AuthFormProps {
   onAuthSuccess: () => void;
@@ -59,8 +60,8 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps) {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">💬</span>
+          <div className="flex items-center justify-center mx-auto mb-4">
+            <img src={voyagerHealthLogo} alt="Voyager Health" className="h-12" />
           </div>
           <h2 className="text-3xl font-bold text-gray-900">
             {isSignUp ? 'Create your account' : 'Welcome back'}

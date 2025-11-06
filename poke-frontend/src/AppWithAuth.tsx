@@ -6,6 +6,7 @@ import { ChatBubble } from './components/ChatBubble';
 import { TypingIndicator } from './components/TypingIndicator';
 import { MessageInput } from './components/MessageInput';
 import { supabase } from './supabase';
+import { useRealtimeMessages } from './hooks/useRealtimeMessages';
 import type { Message } from './types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -15,6 +16,7 @@ function AppWithAuth() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
@@ -57,6 +59,8 @@ function AppWithAuth() {
           // Get the most recent conversation with messages
           if (conversations.length > 0) {
             const convId = conversations[0].id;
+            setConversationId(convId);
+
             const msgResponse = await fetch(`${API_BASE_URL}/conversations/${convId}`, {
               headers: {
                 Authorization: `Bearer ${session.data.session.access_token}`,
@@ -83,6 +87,23 @@ function AppWithAuth() {
     loadConversations();
   }, [user]);
 
+  // Subscribe to realtime messages
+  useRealtimeMessages({
+    conversationId,
+    enabled: !!user && !!conversationId,
+    onNewMessage: (newMessage) => {
+      console.log('📨 Adding new message from Realtime:', newMessage);
+      setMessages(prev => {
+        // Avoid duplicates
+        if (prev.some(m => m.id === newMessage.id)) {
+          return prev;
+        }
+        return [...prev, newMessage];
+      });
+      setIsTyping(false);
+    },
+  });
+
   const handleAuthSuccess = () => {
     // User state will be updated by the auth state listener
   };
@@ -90,6 +111,7 @@ function AppWithAuth() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setMessages([]);
+    setConversationId(null);
   };
 
   const handleSendMessage = async (content: string) => {
@@ -125,49 +147,18 @@ function AppWithAuth() {
       }
 
       const result = await response.json();
+      
+      // Set conversation ID if we just created it
+      if (result.conversation_id && !conversationId) {
+        setConversationId(result.conversation_id);
+      }
+
+      // Show typing indicator
       setIsTyping(true);
 
-      // Poll for response
-      const pollForResponse = async () => {
-        try {
-          const session = await supabase.auth.getSession();
-          if (!session.data.session) return;
+      // Realtime subscription will handle the response automatically!
+      // No more polling needed!
 
-          const responseData = await fetch(
-            `${API_BASE_URL}/messages/${result.message_id}/response`,
-            {
-              headers: {
-                Authorization: `Bearer ${session.data.session.access_token}`,
-              },
-            }
-          );
-
-          if (responseData.ok) {
-            const data = await responseData.json();
-
-            if (data.status === 'completed') {
-              const agentMessage: Message = {
-                id: `msg_${Date.now()}`,
-                content: data.response,
-                sender: 'agent',
-                timestamp: new Date(),
-              };
-              setMessages(prev => [...prev, agentMessage]);
-              setIsTyping(false);
-            } else if (data.status === 'error') {
-              setIsTyping(false);
-            } else {
-              // Still processing, poll again
-              setTimeout(pollForResponse, 2000);
-            }
-          }
-        } catch (error) {
-          console.error('Polling error:', error);
-          setIsTyping(false);
-        }
-      };
-
-      setTimeout(pollForResponse, 1000);
     } catch (error) {
       console.error('Failed to send message:', error);
       setIsTyping(false);
@@ -240,4 +231,3 @@ function AppWithAuth() {
 }
 
 export default AppWithAuth;
-

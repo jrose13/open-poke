@@ -179,8 +179,8 @@ function AppWithAuth() {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🌴</span>
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">💬</span>
           </div>
           <p className="text-gray-600">Loading...</p>
         </div>
@@ -196,12 +196,12 @@ function AppWithAuth() {
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-            <span className="text-lg">🌴</span>
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <span className="text-lg">💬</span>
           </div>
           <div>
-            <h1 className="font-semibold text-gray-900">Poke AI</h1>
-            <p className="text-sm text-gray-500">AI Email Analyst</p>
+            <h1 className="font-semibold text-gray-900">Voyager Health</h1>
+            <p className="text-sm text-gray-500">AI Healthcare Assistant</p>
           </div>
         </div>
         <button
@@ -219,10 +219,10 @@ function AppWithAuth() {
               <User className="w-8 h-8 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Welcome to Open Poke!
+              Welcome to Voyager Health!
             </h3>
             <p className="text-gray-500 max-w-sm">
-              Your conversations are now saved and will persist across sessions.
+              Your healthcare conversations are securely saved and will persist across sessions.
             </p>
           </div>
         ) : (
@@ -238,7 +238,7 @@ function AppWithAuth() {
       <MessageInput
         onSendMessage={handleSendMessage}
         disabled={isSending}
-        placeholder="Ask Poke about your email patterns, contacts, or insights..."
+        placeholder="Ask about your health, symptoms, or medical questions..."
       />
     </div>
   );

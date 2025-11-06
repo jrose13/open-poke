@@ -83,15 +83,20 @@ class MessageProcessor:
 
             # Extract and update core memory from this conversation
             try:
+                print(f"\n[MEMORY] Starting extraction for user {message.user_id}")
                 from .memory import memory_manager
                 await memory_manager.extract_and_update_memory(
                     user_id=message.user_id,
                     conversation_text=message.content,
                     agent_response=response
                 )
+                print(f"[MEMORY] ✓ Extraction completed for user {message.user_id}")
                 logger.info(f"Memory extraction completed for user {message.user_id}")
             except Exception as mem_error:
+                print(f"[MEMORY] ✗ Extraction failed: {mem_error}")
                 logger.error(f"Memory extraction failed: {mem_error}")
+                import traceback
+                traceback.print_exc()
                 # Don't fail the whole message processing if memory extraction fails
 
             logger.info(f"Generated and saved response for message {message.message_id}")

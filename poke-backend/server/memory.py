@@ -184,54 +184,54 @@ class MemoryManager:
             Updated CoreMemorySchema
         """
         try:
+            print(f"[MEMORY EXTRACT] Loading OpenAI model...")
             from .constants import openai
             from langchain_core.messages import SystemMessage, HumanMessage
             
+            print(f"[MEMORY EXTRACT] Getting current memory for user {user_id}")
             current_memory = await self.get_core_memory(user_id)
             
-            extraction_prompt = f"""You are a memory extraction assistant. Your job is to identify factual information about a user from their conversation with a healthcare assistant.
+            extraction_prompt = f"""You are a memory extraction assistant. Extract factual information about the user from their message.
 
-Current Core Memory:
-{json.dumps(current_memory.to_dict(), indent=2)}
+Current Memory: {json.dumps(current_memory.to_dict(), indent=2) if current_memory.to_dict() else "Empty"}
 
-Recent Conversation:
-User: {conversation_text}
-{f'Assistant: {agent_response}' if agent_response else ''}
+User's Message: "{conversation_text}"
+{f'Agent Response: "{agent_response}"' if agent_response else ''}
 
-Extract any NEW or UPDATED facts that should be stored in core memory. Look for:
-- User's name
-- Whether they're helping themselves or caring for someone else (care_role: "self" or "caregiver")
-- Name of care recipient if they're a caregiver
-- ZIP code
-- Insurance information (carrier, plan type)
-- Medications mentioned
-- Appointments mentioned
-- Key health concerns
-- Communication preferences
+Extract ONLY facts explicitly stated by the user. Return a JSON object with these fields (omit fields with no information):
 
-ONLY extract information explicitly stated by the user. Do not infer or assume.
+- user_name: The user's first name
+- care_role: "self" (if helping themselves) or "caregiver" (if helping someone else)
+- care_recipient_name: Name/relation of person being cared for (e.g., "mom", "dad", "John")
+- zip_code: ZIP code as a string
+- insurance_carrier: Insurance company name
+- plan_type: Type of insurance plan
+- medications: List of medication names
+- key_concerns: List of health concerns mentioned
 
-Respond with a JSON object containing ONLY the fields that should be updated. Use this exact format:
-{{
-  "user_name": "string or null",
-  "care_role": "self or caregiver or null",
-  "care_recipient_name": "string or null",
-  "zip_code": "string or null",
-  "insurance_carrier": "string or null",
-  "plan_type": "string or null",
-  "medications": ["list of strings"],
-  "key_concerns": ["list of strings"]
-}}
+Examples:
 
-If no new information to extract, return: {{}}"""
+User: "My name is Sarah and I live in 90210"
+Output: {{"user_name": "Sarah", "zip_code": "90210"}}
 
+User: "I'm helping my mom who has UnitedHealthcare Medicare"
+Output: {{"care_role": "caregiver", "care_recipient_name": "mom", "insurance_carrier": "UnitedHealthcare", "plan_type": "Medicare"}}
+
+User: "I take Metformin for my diabetes"
+Output: {{"medications": ["Metformin"], "key_concerns": ["diabetes"]}}
+
+Now extract from the user's message above. Return ONLY the JSON object, no explanation:"""
+
+            print(f"[MEMORY EXTRACT] Calling LLM for extraction...")
             response = await openai.ainvoke([
-                SystemMessage(content="You are a precise fact extraction assistant. Extract only explicitly stated information."),
+                SystemMessage(content="You extract facts from user messages. Return valid JSON only, no markdown, no explanations."),
                 HumanMessage(content=extraction_prompt)
             ])
             
+            print(f"[MEMORY EXTRACT] LLM response received, parsing...")
             # Parse the response
             response_text = response.content.strip()
+            print(f"[MEMORY EXTRACT] Raw response: {response_text[:200]}...")
             
             # Extract JSON from response (handle markdown code blocks)
             if "```json" in response_text:
@@ -240,11 +240,14 @@ If no new information to extract, return: {{}}"""
                 response_text = response_text.split("```")[1].split("```")[0].strip()
             
             extracted_facts = json.loads(response_text)
+            print(f"[MEMORY EXTRACT] Parsed facts: {extracted_facts}")
             
             if extracted_facts:
+                print(f"[MEMORY EXTRACT] Updating memory with new facts...")
                 logger.info(f"Extracted facts for user {user_id}: {extracted_facts}")
                 return await self.update_core_memory(user_id, extracted_facts, merge=True)
             else:
+                print(f"[MEMORY EXTRACT] No new facts to extract")
                 logger.debug(f"No new facts extracted for user {user_id}")
                 return current_memory
                 

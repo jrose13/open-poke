@@ -1,6 +1,6 @@
 export type ApiError = Error & { status?: number; body?: string };
 
-const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = 'http://localhost:8000';
 
 export class ApiClient {
   private baseUrl: string;

@@ -9,13 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class MessageProcessor:
-    def __init__(self, message_queue, users, memories):
+    def __init__(self, message_queue, users, memories, notifier=None):
         self.agent = VoyagerAgent()
         self.message_queue = message_queue
         self.users = users
         self.memories = memories
         self.processing = False
         self.message_responses = {}  # Track responses by message_id
+        self.notifier = notifier
     
     async def start_processing(self):
         """Start the message processing loop"""
@@ -51,32 +52,46 @@ class MessageProcessor:
         """Process a single message"""
         try:
             logger.info(f"Processing message {message.message_id} from user {message.user_id}")
-            
+
+            # Always store the user turn
+            self._add_conversation(message.user_id, message.content, "user")
+
             # Process through agent
             response = await self.agent.process_message(message.user_id, message.content)
-            
+
             # Store the response mapped to message_id
             self.message_responses[message.message_id] = {
                 "response": response,
                 "timestamp": __import__('datetime').datetime.now().isoformat(),
                 "status": "completed"
             }
-            
+
             # Store the conversation for history
-            self._add_conversation(message.user_id, message.content, "user")
             self._add_conversation(message.user_id, response, "agent")
-            
+
             logger.info(f"Generated response for message {message.message_id}: {response[:100]}...")
-            
+
         except Exception as e:
             logger.error(f"Error processing message {message.message_id}: {type(e).__name__}")
             # Store error response
+            error_text = "Sorry, I encountered an error processing your message."
             self.message_responses[message.message_id] = {
-                "response": "Sorry, I encountered an error processing your message.",
+                "response": error_text,
                 "timestamp": __import__('datetime').datetime.now().isoformat(),
                 "status": "error"
             }
             logger.debug(f"Full error details: {e}")
+
+            self._add_conversation(message.user_id, error_text, "agent")
+
+        if self.notifier and message.user_id in self.memories:
+            await self.notifier.broadcast(
+                message.user_id,
+                {
+                    "type": "conversation_update",
+                    "conversations": self.memories[message.user_id].conversation_history,
+                },
+            )
     
     
     async def queue_user_message(self, user_id: str, content: str) -> str:

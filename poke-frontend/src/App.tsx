@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from 'lucide-react';
 import { ConnectionSetup } from './components/ConnectionSetup';
 import { ChatBubble } from './components/ChatBubble';
 import { TypingIndicator } from './components/TypingIndicator';
 import { MessageInput } from './components/MessageInput';
-import { apiClient } from './api';
+import { apiClient, API_BASE_URL } from './api';
 import type { ApiError } from './api';
 import type { Message } from './types';
 
@@ -22,6 +22,28 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const websocketRef = useRef<WebSocket | null>(null);
+  const [isWebsocketReady, setIsWebsocketReady] = useState(false);
+  const isWebsocketReadyRef = useRef(false);
+  const conversationPollingRef = useRef<number | null>(null);
+  const conversationPollingAttemptsRef = useRef(0);
+  const messagePollingRefs = useRef<Record<string, { attempts: number; timeoutId: number | null }>>({});
+
+  const mapConversationsToMessages = useCallback((conversations: any[]): Message[] => {
+    if (!Array.isArray(conversations)) {
+      return [];
+    }
+
+    return conversations.map((conv: any, index: number) => {
+      const timestamp = conv.timestamp ? new Date(conv.timestamp) : new Date();
+      return {
+        id: conv.id ?? `conv_${index}_${timestamp.getTime()}`,
+        content: conv.message ?? '',
+        sender: conv.type === 'agent' ? 'agent' : 'user',
+        timestamp,
+      };
+    });
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,37 +112,96 @@ function App() {
       }
     }
 
-    if (!savedMessages || savedMessages === '[]') {
-      handleInitialMessage(savedUserId);
-    }
   }, []);
 
-  const clearStoredState = (includeUser = false) => {
+  useEffect(() => {
+    isWebsocketReadyRef.current = isWebsocketReady;
+  }, [isWebsocketReady]);
+
+  const clearConversationPolling = useCallback(() => {
+    if (conversationPollingRef.current !== null) {
+      window.clearTimeout(conversationPollingRef.current);
+      conversationPollingRef.current = null;
+    }
+    conversationPollingAttemptsRef.current = 0;
+  }, []);
+
+  const clearMessagePolling = useCallback((messageId?: string) => {
+    if (messageId) {
+      const entry = messagePollingRefs.current[messageId];
+      if (entry?.timeoutId !== null) {
+        window.clearTimeout(entry.timeoutId);
+      }
+      delete messagePollingRefs.current[messageId];
+      return;
+    }
+
+    Object.keys(messagePollingRefs.current).forEach(key => {
+      const entry = messagePollingRefs.current[key];
+      if (entry?.timeoutId !== null) {
+        window.clearTimeout(entry.timeoutId);
+      }
+    });
+    messagePollingRefs.current = {};
+  }, []);
+
+  const clearStoredState = useCallback((includeUser = false) => {
     localStorage.removeItem('poke_messages');
     localStorage.removeItem('poke_is_typing');
     localStorage.removeItem('poke_is_loading');
     if (includeUser) {
       localStorage.removeItem('poke_user_id');
     }
-  };
+  }, []);
 
-  const resetSession = (notice: string = SESSION_RESET_MESSAGE) => {
+  const resetSession = useCallback((notice: string = SESSION_RESET_MESSAGE) => {
     clearStoredState(true);
+    clearConversationPolling();
+    clearMessagePolling();
     setMessages([]);
     setIsTyping(false);
     setIsLoading(false);
+    setIsWebsocketReady(false);
+    if (websocketRef.current) {
+      websocketRef.current.close();
+      websocketRef.current = null;
+    }
     setUserId(null);
     setSessionNotice(notice);
-  };
+  }, [clearConversationPolling, clearMessagePolling, clearStoredState]);
 
   const handleDisconnect = () => {
     localStorage.removeItem('poke_user_id');
     clearStoredState();
+    clearConversationPolling();
+    clearMessagePolling();
+    if (websocketRef.current) {
+      websocketRef.current.close();
+      websocketRef.current = null;
+    }
+    setIsWebsocketReady(false);
     setUserId(null);
     setMessages([]);
     setIsTyping(false);
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const shouldReset = params.get('reset');
+
+    if (shouldReset) {
+      resetSession();
+      params.delete('reset');
+      const newSearch = params.toString();
+      const newUrl = `${window.location.origin}${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [resetSession]);
 
   const handleConnectionEstablished = (newUserId: string) => {
     clearStoredState();
@@ -128,59 +209,58 @@ function App() {
     setIsTyping(false);
     setIsLoading(false);
     setSessionNotice(null);
+    clearConversationPolling();
+    clearMessagePolling();
+    setIsWebsocketReady(false);
+
+    if (websocketRef.current) {
+      websocketRef.current.close();
+      websocketRef.current = null;
+    }
 
     setUserId(newUserId);
     localStorage.setItem('poke_user_id', newUserId);
-    handleInitialMessage(newUserId);
   };
 
-  const handleInitialMessage = async (userIdToUse: string) => {
-    setIsTyping(true);
-    try {
-      await apiClient.sendMessage(userIdToUse, "Hello Voyager. Collect my basics and prep the Member Profile Summary.");
-
-      const agentMessage: Message = {
-        id: `msg_${Date.now()}`,
-        content: 'Let me research you real quick... 🔍',
-        sender: 'agent',
-        timestamp: new Date(),
-      };
-
-      setMessages([agentMessage]);
-      pollForResponses(userIdToUse);
-    } catch (error) {
-      console.error('Failed to send initial message:', error);
-      setIsTyping(false);
-      if (isSessionExpiredError(error)) {
-        resetSession();
+  const startConversationPolling = useCallback(
+    (userIdToPoll: string) => {
+      if (!userIdToPoll) {
+        return;
       }
-    }
-  };
 
-  const pollForResponses = async (userIdToUse: string) => {
-    let attempts = 0;
-    const maxAttempts = 24;
+      clearConversationPolling();
 
-    const poll = async () => {
-      try {
-        const conversations = await apiClient.getUserConversations(userIdToUse);
-        if (conversations.conversations && conversations.conversations.length > 0) {
-          const backendMessages = conversations.conversations.map((conv: any, index: number) => ({
-            id: `msg_${index}`,
-            content: conv.message,
-            sender: conv.type as 'user' | 'agent',
-            timestamp: new Date(conv.timestamp),
-          }));
+      const maxAttempts = 24;
 
-          setMessages(backendMessages);
-          setIsTyping(false);
+      const poll = async () => {
+        if (isWebsocketReadyRef.current) {
+          clearConversationPolling();
           return;
         }
 
-        attempts += 1;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 5000);
+        try {
+          const conversations = await apiClient.getUserConversations(userIdToPoll);
+          const conversationList = conversations?.conversations ?? [];
+          if (Array.isArray(conversationList) && conversationList.length > 0) {
+            const backendMessages = mapConversationsToMessages(conversationList);
+            setMessages(backendMessages);
+            setIsTyping(false);
+            clearConversationPolling();
+            return;
+          }
+        } catch (error) {
+          console.error('Conversation polling failed:', error);
+          if (isSessionExpiredError(error)) {
+            resetSession();
+            return;
+          }
+        }
+
+        conversationPollingAttemptsRef.current += 1;
+        if (conversationPollingAttemptsRef.current < maxAttempts) {
+          conversationPollingRef.current = window.setTimeout(poll, 5000);
         } else {
+          clearConversationPolling();
           setIsTyping(false);
           setMessages([
             {
@@ -192,63 +272,81 @@ function App() {
             },
           ]);
         }
-      } catch (error) {
-        console.error('Failed to poll for responses:', error);
-        if (isSessionExpiredError(error)) {
-          resetSession();
-          return;
-        }
+      };
 
-        attempts += 1;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 5000);
-        } else {
-          setIsTyping(false);
-        }
+      poll();
+    },
+    [clearConversationPolling, mapConversationsToMessages, resetSession],
+  );
+
+  const startMessagePolling = useCallback(
+    (messageId: string) => {
+      if (!messageId) {
+        return;
       }
-    };
 
-    poll();
-  };
+      if (messagePollingRefs.current[messageId]?.timeoutId !== null) {
+        return;
+      }
 
-  const pollForMessageResponse = async (messageId: string) => {
-    let attempts = 0;
-    const maxAttempts = 30;
+      messagePollingRefs.current[messageId] = { attempts: 0, timeoutId: null };
+      const maxAttempts = 30;
 
-    const poll = async () => {
-      try {
-        const responseData = await apiClient.getMessageResponse(messageId);
-
-        if (responseData.status === 'completed') {
-          const agentMessage: Message = {
-            id: `msg_${Date.now()}`,
-            content: responseData.response,
-            sender: 'agent',
-            timestamp: new Date(),
-          };
-
-          setMessages(prev => [...prev, agentMessage]);
-          setIsTyping(false);
+      const poll = async () => {
+        if (isWebsocketReadyRef.current) {
+          clearMessagePolling(messageId);
           return;
         }
 
-        if (responseData.status === 'error') {
-          const errorMessage: Message = {
-            id: `msg_${Date.now()}`,
-            content: 'Sorry, I encountered an error processing your message.',
-            sender: 'agent',
-            timestamp: new Date(),
-          };
+        try {
+          const responseData = await apiClient.getMessageResponse(messageId);
 
-          setMessages(prev => [...prev, errorMessage]);
-          setIsTyping(false);
+          if (responseData.status === 'completed') {
+            const agentMessage: Message = {
+              id: `msg_${Date.now()}`,
+              content: responseData.response,
+              sender: 'agent',
+              timestamp: new Date(),
+            };
+
+            setMessages(prev => [...prev, agentMessage]);
+            setIsTyping(false);
+            clearMessagePolling(messageId);
+            return;
+          }
+
+          if (responseData.status === 'error') {
+            const errorMessage: Message = {
+              id: `msg_${Date.now()}`,
+              content: 'Sorry, I encountered an error processing your message.',
+              sender: 'agent',
+              timestamp: new Date(),
+            };
+
+            setMessages(prev => [...prev, errorMessage]);
+            setIsTyping(false);
+            clearMessagePolling(messageId);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to poll for response:', error);
+          if (isSessionExpiredError(error)) {
+            clearMessagePolling(messageId);
+            resetSession();
+            return;
+          }
+        }
+
+        const entry = messagePollingRefs.current[messageId];
+        if (!entry) {
           return;
         }
 
-        attempts += 1;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 5000);
+        entry.attempts += 1;
+        if (entry.attempts < maxAttempts) {
+          entry.timeoutId = window.setTimeout(poll, 5000);
         } else {
+          clearMessagePolling(messageId);
           setIsTyping(false);
           const timeoutMessage: Message = {
             id: 'msg_timeout',
@@ -258,24 +356,13 @@ function App() {
           };
           setMessages(prev => [...prev, timeoutMessage]);
         }
-      } catch (error) {
-        console.error('Failed to poll for response:', error);
-        if (isSessionExpiredError(error)) {
-          resetSession();
-          return;
-        }
+      };
 
-        attempts += 1;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 5000);
-        } else {
-          setIsTyping(false);
-        }
-      }
-    };
+      poll();
+    },
+    [clearMessagePolling, resetSession],
+  );
 
-    poll();
-  };
 
   const handleSendMessage = async (content: string) => {
     if (!userId) {
@@ -303,7 +390,9 @@ function App() {
       );
 
       setIsTyping(true);
-      pollForMessageResponse(result.message_id);
+      if (!isWebsocketReadyRef.current && result?.message_id) {
+        startMessagePolling(result.message_id);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
 
@@ -317,10 +406,129 @@ function App() {
           msg.id === userMessage.id ? { ...msg, status: 'failed' as const } : msg,
         ),
       );
+      setIsTyping(false);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!userId) {
+      if (websocketRef.current) {
+        websocketRef.current.close();
+        websocketRef.current = null;
+      }
+      setIsWebsocketReady(false);
+      clearConversationPolling();
+      clearMessagePolling();
+      return;
+    }
+
+    if (websocketRef.current) {
+      websocketRef.current.close();
+      websocketRef.current = null;
+    }
+
+    let cancelled = false;
+
+    const resolveWebsocketUrl = () => {
+      try {
+        const baseUrl = new URL(API_BASE_URL);
+        const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+        const basePath = baseUrl.pathname.replace(/\/$/, '');
+        return `${wsProtocol}//${baseUrl.host}${basePath}/ws/users/${encodeURIComponent(userId)}`;
+      } catch {
+        const origin = window.location.origin;
+        const wsOrigin = origin.startsWith('https://')
+          ? origin.replace('https://', 'wss://')
+          : origin.replace('http://', 'ws://');
+        const basePath = API_BASE_URL.startsWith('/') ? API_BASE_URL : `/${API_BASE_URL}`;
+        const trimmed = basePath === '/' ? '' : basePath.replace(/\/$/, '');
+        return `${wsOrigin}${trimmed}/ws/users/${encodeURIComponent(userId)}`;
+      }
+    };
+
+    try {
+      const wsUrl = resolveWebsocketUrl();
+      const websocket = new WebSocket(wsUrl);
+      websocketRef.current = websocket;
+
+      websocket.onopen = () => {
+        if (cancelled) {
+          return;
+        }
+        setIsWebsocketReady(true);
+        clearConversationPolling();
+        clearMessagePolling();
+      };
+
+      websocket.onmessage = event => {
+        if (cancelled) {
+          return;
+        }
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'conversation_snapshot' || data.type === 'conversation_update') {
+            const conversationList = Array.isArray(data.conversations) ? data.conversations : [];
+            if (conversationList.length > 0) {
+              const converted = mapConversationsToMessages(conversationList);
+              setMessages(converted);
+            }
+            setIsTyping(false);
+          }
+        } catch (error) {
+          console.error('Failed to parse websocket message:', error);
+        }
+      };
+
+      websocket.onerror = error => {
+        if (cancelled) {
+          return;
+        }
+        console.error('Websocket error:', error);
+        setIsWebsocketReady(false);
+        if (userId) {
+          startConversationPolling(userId);
+        }
+      };
+
+      websocket.onclose = () => {
+        if (websocketRef.current === websocket) {
+          websocketRef.current = null;
+        }
+        if (cancelled) {
+          return;
+        }
+        setIsWebsocketReady(false);
+        setIsTyping(false);
+        if (userId) {
+          startConversationPolling(userId);
+        }
+      };
+
+      return () => {
+        cancelled = true;
+        if (websocketRef.current === websocket) {
+          websocketRef.current = null;
+        }
+        websocket.close();
+      };
+    } catch (error) {
+      console.error('Failed to establish websocket connection:', error);
+      setIsWebsocketReady(false);
+      startConversationPolling(userId);
+    }
+  }, [
+    userId,
+    mapConversationsToMessages,
+    clearConversationPolling,
+    clearMessagePolling,
+    startConversationPolling,
+  ]);
 
   if (!userId) {
     return (

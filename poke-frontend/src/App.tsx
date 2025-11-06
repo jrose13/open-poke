@@ -540,25 +540,23 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-4 py-4 flex items-center gap-3">
-        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-          <span className="text-lg">🌴</span>
-        </div>
-        <div>
-          <h1 className="font-semibold text-gray-900">Poke AI</h1>
-          <p className="text-sm text-gray-500">AI Email Analyst</p>
+    <div className="flex flex-col h-screen bg-white">
+      <div className="bg-white border-b border-gray-300 px-6 py-4 flex items-center gap-4">
+        <img src="/src/assets/voyager_health.svg" alt="Voyager Health" className="h-10" />
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-gray-900">Carl</h1>
+          <p className="text-xs text-gray-600">Healthcare Assistant</p>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-hide bg-gray-50">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <User className="w-8 h-8 text-gray-400" />
+            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+              <User className="w-10 h-10 text-blue-600" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Welcome to Open Poke!</h3>
-            <p className="text-gray-500 max-w-sm">Send me a message to get started.</p>
+            <h3 className="text-2xl font-semibold text-gray-900 mb-3">Welcome to Carl</h3>
+            <p className="text-gray-600 max-w-md">I'm your personal healthcare assistant. Ask me about your benefits, coverage, or any healthcare questions.</p>
           </div>
         ) : (
           <>
@@ -574,7 +572,7 @@ function App() {
       <MessageInput
         onSendMessage={handleSendMessage}
         disabled={isLoading}
-        placeholder="Ask Poke about your email patterns, contacts, or insights..."
+        placeholder="Ask Carl about your healthcare benefits, coverage, or questions..."
       />
     </div>
   );

@@ -207,14 +207,14 @@ export function ConnectionSetup({ onConnectionEstablished, notice }: ConnectionS
 
   if (step === 'user-info') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-4">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-md border border-gray-200 p-8">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-8 h-8 text-blue-600" />
+            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-10 h-10 text-blue-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Open Poke</h1>
-            <p className="text-sm text-gray-500">Voyager Companion onboarding</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Carl</h1>
+            <p className="text-sm text-gray-600">Your Healthcare Assistant</p>
           </div>
 
           {notice && (
@@ -252,7 +252,7 @@ export function ConnectionSetup({ onConnectionEstablished, notice }: ConnectionS
             <button
               type="submit"
               disabled={loading || !userInfo.name}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {loading ? (
                 <>
@@ -271,14 +271,14 @@ export function ConnectionSetup({ onConnectionEstablished, notice }: ConnectionS
 
   if (step === 'auth') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ExternalLink className="w-8 h-8 text-green-600" />
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-4">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-md border border-gray-200 p-8 text-center">
+          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ExternalLink className="w-10 h-10 text-green-600" />
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Authorize Gmail Access</h2>
-          <p className="text-gray-600 mb-6">Authorize Poke AI in the new tab, then we’ll drop you into chat once Composio confirms.</p>
+          <p className="text-gray-600 mb-6">Authorize Carl in the new tab, then we'll drop you into chat once Composio confirms.</p>
 
           <div className="space-y-4">
             {connectionData?.redirectUrl && (

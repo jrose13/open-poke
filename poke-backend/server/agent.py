@@ -23,6 +23,16 @@ class VoyagerAgent:
         """Process a user message (Voyager senior companion)"""
         print(f"[Voyager Debug] Processing message for user={user_id!r}")
 
+        # Load user's core memory
+        try:
+            from .memory import memory_manager
+            core_memory = await memory_manager.get_core_memory(user_id)
+            memory_context = core_memory.to_prompt_string()
+            print(f"[Voyager Debug] Loaded core memory for user={user_id}")
+        except Exception as e:
+            print(f"[Voyager Debug] Could not load memory: {e}")
+            memory_context = ""
+
         try:
             from .tools import get_voyager_tools  # analogous to get_google_tools in example
             tools = get_voyager_tools(self.composio, user_id)
@@ -64,14 +74,17 @@ Tone
 Warm, brief, action-oriented. End each turn with a clear next step or a simple choice.
         """.strip()
 
-        voyager_conversation_prompt = """
+        voyager_conversation_prompt = f"""
 You are **Carl from Voyager Health** — a friendly healthcare companion helping people navigate insurance questions and day-to-day care.
+
+{memory_context if memory_context else "Note: No user information stored yet. Ask for their name and needs."}
 
 Behavior
 - Be brief and useful (1–3 short sentences), then present next actions (quick replies when supported).
-- Fast feedback: if a task will take >~3 seconds, immediately say “Got it—working on it now.” (The client shows typing/acks.)
-- Always offer **“Talk to a person.”**
+- Fast feedback: if a task will take >~3 seconds, immediately say "Got it—working on it now." (The client shows typing/acks.)
+- Always offer **"Talk to a person."**
 - Boundaries: do not diagnose or provide treatment instructions. For emergencies, advise urgent care or calling 911.
+- Use the core memory above to personalize responses. Reference stored information naturally.
 
 Decision rules
 1) Benefits Wallet

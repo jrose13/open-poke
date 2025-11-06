@@ -66,6 +66,10 @@ class ConnectionRequest(BaseModel):
     auth_config_id: Optional[str] = None
 
 
+class CoreMemoryUpdateRequest(BaseModel):
+    updates: dict
+
+
 @app.on_event("startup")
 async def startup_event():
     """Start the message processor when the API starts"""
@@ -326,6 +330,63 @@ async def user_updates(
     except Exception as e:
         print(f"WebSocket error: {e}")
         event_notifier.disconnect(user_id, websocket)
+
+
+# Memory Management endpoints
+@app.get("/memory/core")
+async def get_core_memory(user_id: str = Depends(auth_service.verify_token)):
+    """Get user's core memory"""
+    try:
+        from .memory import memory_manager
+        core_memory = await memory_manager.get_core_memory(user_id)
+        return {
+            "success": True,
+            "core_memory": core_memory.to_dict(),
+            "prompt_preview": core_memory.to_prompt_string()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve core memory: {str(e)}")
+
+
+@app.post("/memory/core")
+async def update_core_memory(
+    request: CoreMemoryUpdateRequest,
+    user_id: str = Depends(auth_service.verify_token)
+):
+    """Update user's core memory"""
+    try:
+        from .memory import memory_manager
+        updated_memory = await memory_manager.update_core_memory(
+            user_id=user_id,
+            updates=request.updates,
+            merge=True
+        )
+        return {
+            "success": True,
+            "core_memory": updated_memory.to_dict()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update core memory: {str(e)}")
+
+
+@app.post("/memory/extract")
+async def extract_memory_from_text(
+    request: MessageRequest,
+    user_id: str = Depends(auth_service.verify_token)
+):
+    """Manually trigger memory extraction from a piece of text (for testing)"""
+    try:
+        from .memory import memory_manager
+        updated_memory = await memory_manager.extract_and_update_memory(
+            user_id=user_id,
+            conversation_text=request.content
+        )
+        return {
+            "success": True,
+            "core_memory": updated_memory.to_dict()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract memory: {str(e)}")
 
 
 @app.get("/health")

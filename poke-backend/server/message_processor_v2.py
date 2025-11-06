@@ -81,6 +81,19 @@ class MessageProcessor:
                 role="assistant"
             )
 
+            # Extract and update core memory from this conversation
+            try:
+                from .memory import memory_manager
+                await memory_manager.extract_and_update_memory(
+                    user_id=message.user_id,
+                    conversation_text=message.content,
+                    agent_response=response
+                )
+                logger.info(f"Memory extraction completed for user {message.user_id}")
+            except Exception as mem_error:
+                logger.error(f"Memory extraction failed: {mem_error}")
+                # Don't fail the whole message processing if memory extraction fails
+
             logger.info(f"Generated and saved response for message {message.message_id}")
 
             # Notify via WebSocket if connected

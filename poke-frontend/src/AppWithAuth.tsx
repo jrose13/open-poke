@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { User } from 'lucide-react';
 import { AuthForm } from './components/AuthForm';
 import voyagerHealthLogo from './assets/voyager_health.svg';
@@ -19,6 +19,27 @@ function AppWithAuth() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  };
+
+  // Scroll when messages change or typing indicator appears
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [messages, isTyping]);
+
+  // Initial scroll on mount
+  useEffect(() => {
+    scrollToBottom();
+  }, []);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -76,6 +97,8 @@ function AppWithAuth() {
                 timestamp: new Date(msg.created_at),
               }));
               setMessages(formattedMessages);
+              // Scroll after messages are loaded
+              setTimeout(scrollToBottom, 200);
             }
           }
         }
@@ -198,7 +221,7 @@ function AppWithAuth() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hide">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hide">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">

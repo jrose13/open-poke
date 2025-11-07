@@ -37,7 +37,7 @@ export function MessageInput({ onSendMessage, disabled = false, placeholder = "T
           disabled={disabled}
           className={clsx(
             "w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all",
-            "min-h-[44px] max-h-32 scrollbar-hide",
+            "min-h-[44px] max-h-32 scrollbar-hide text-gray-900",
             disabled && "opacity-50 cursor-not-allowed"
           )}
           rows={1}
